@@ -8,6 +8,20 @@
 
 - feat: add resumable generation, local skills, and safe rollback (#5)
 
+## 变更详情
+
+- 新增服务端托管生成任务，生成过程不再绑定单个浏览器连接。
+- 新增按任务 ID 的 SSE 事件重放，浏览器刷新后可恢复推理草稿和正式正文进度。
+- 保持每会话独立上下文，并阻止同一会话并发生成导致消息交叉。
+- provider 请求失败前先持久化用户回合；余额不足和 10000 input token 门槛错误分类提示，不要求重启引擎。
+- 区分强制官方 `skills` 与可选 `This machine skills`；本机目录支持文件夹、ZIP 和动态索引，按需加载扩展内容。
+- 扩展只读 Android 设备能力：安装应用包名列表、Root/系统命令、`/proc`、`/sys`、挂载信息和包管理器能力，限制数量和字段，不读取应用数据。
+- 内置 ShortX 官方说明页和 snow Raw 索引地址，客户端使用 Raw JSON 地址。
+- 新增按 ABI、ELF、SHA-256 和健康状态校验的“一键回退到上一个版本”脚本；回退失败自动恢复当前版本。
+- 正式 Release 改为只保留最新两个版本。
+- 新增公开 `ai-web-engine-changelog` 仓库和 GitHub Pages 自动同步基础设施。
+- 项目状态文件和项目连续性目录仅保留本地，不进入 Git 仓库或发行包。
+
 ## 发布说明
 
 Co-authored-by: snowzlmbot &lt;293528334+snowzlmbot@users.noreply.github.com&gt;

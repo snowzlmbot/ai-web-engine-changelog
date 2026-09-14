@@ -21,11 +21,21 @@ class Release:
     date: str
     subject: str
     body: str
+    notes: str
     commits: tuple[str, ...]
 
 
 def git(source: pathlib.Path, *args: str) -> str:
     return subprocess.check_output(["git", "-C", str(source), *args], text=True).strip()
+
+
+def changelog_notes(source: pathlib.Path, tag: str, version: str) -> str:
+    try:
+        text = git(source, "show", f"{tag}:CHANGELOG.md")
+    except subprocess.CalledProcessError:
+        return ""
+    match = re.search(rf"^## \[?{re.escape(version)}\]?[^\n]*\n(.*?)(?=^## |\Z)", text, re.MULTILINE | re.DOTALL)
+    return match.group(1).strip() if match else ""
 
 
 def releases(source: pathlib.Path) -> list[Release]:
@@ -44,12 +54,16 @@ def releases(source: pathlib.Path) -> list[Release]:
         older = tags[index + 1][0] if index + 1 < len(tags) else ""
         commit_range = f"{older}..{tag}" if older else tag
         subjects = tuple(line for line in git(source, "log", "--format=%s", commit_range).splitlines() if line)
-        result.append(Release(tag, ".".join(map(str, parts)), parts[0], commit, date, subject, body, subjects))
+        version = ".".join(map(str, parts))
+        notes = changelog_notes(source, tag, version)
+        result.append(Release(tag, version, parts[0], commit, date, subject, body, notes, subjects))
     return result
 
 
 def markdown(release: Release) -> str:
     lines = [f"# ai-web-engine {release.version}", "", f"- 发布标签：`{release.tag}`", f"- 提交：`{release.commit}`", f"- 日期：`{release.date}`", "", "## 版本主题", "", f"- {release.subject or '（该标签未提供主题）'}"]
+    if release.notes:
+        lines += ["", "## 变更详情", "", release.notes]
     if release.body:
         lines += ["", "## 发布说明", "", release.body]
     lines += ["", "## 此版本提交记录", ""]
