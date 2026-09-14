@@ -1,0 +1,8 @@
+# Python cache
+__pycache__/
+*.pyc
+
+# Local project state is never published
+PROJECT_STATE.json
+PROJECT_STATUS.md
+.project-continuity/

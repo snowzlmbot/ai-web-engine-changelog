@@ -1,0 +1,58 @@
+name: Sync changelog and deploy Pages
+
+on:
+  repository_dispatch:
+    types: [ai-web-engine-release]
+  workflow_dispatch:
+  schedule:
+    - cron: '17 * * * *'
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: changelog-pages
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fetch ai-web-engine release history
+        run: git clone --filter=blob:none --no-checkout https://github.com/snowzlmbot/ai-web-engine.git /tmp/ai-web-engine
+      - name: Fetch tags
+        run: git -C /tmp/ai-web-engine fetch --tags --force
+      - name: Generate full and per-version changelogs
+        run: python3 scripts/sync_changelog.py --source /tmp/ai-web-engine --out "$GITHUB_WORKSPACE"
+      - name: Commit generated changes
+        run: |
+          set -eu
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -- 更新日志.md 更新日志 docs
+          if git diff --cached --quiet; then
+            echo 'No changelog changes'
+          else
+            git commit -m "docs: sync ai-web-engine release changelog"
+            git push
+          fi
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+  deploy:
+    needs: sync
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
