@@ -169,7 +169,7 @@ def markdown(release: Release) -> str:
 def root_markdown(items: list[Release]) -> str:
     lines = ["# ai-web-engine 更新日志", "", "> 本文档由正式 Git tag 和 GitHub Release 自动生成；最新版本在最前。", "", "## 版本导航", ""]
     for release in items:
-        lines.append(f"- [{release.version}](更新日志/{release.major}/{release.version}.md) · `{release.date}` · [{release.subject or '查看详情'}](更新日志/{release.major}/{release.version}.md) · [GitHub Release]({release.release_url})")
+        lines.append(f"- [{release.version}](更新日志/{release.major}/{release.version}.md) · `{release.date}` · 最后编辑 `{release.updated_at or release.published_at or '未提供'}` · [{release.subject or '查看详情'}](更新日志/{release.major}/{release.version}.md) · [GitHub Release]({release.release_url})")
     lines += ["", "## 历史版本", "", "每个版本的提交主题、真实 Release 资产、SHA-256 和版本内提交记录位于对应大版本目录。", ""]
     return "\n".join(lines)
 
