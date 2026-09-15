@@ -1,0 +1,33 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ai-web-engine 1.2.3</title><style>body{font:16px/1.65 system-ui,sans-serif;max-width:960px;margin:auto;padding:2rem}a{color:#0969da}</style><body><p><a href="../../index.html">返回更新日志首页</a></p><pre style="white-space:pre-wrap"># ai-web-engine 1.2.3
+
+- 发布标签：`v1.2.3`
+- 提交：`70d9043ea53362cfc7735ce2227fb3d9a79735a1`
+- 日期：`2026-09-15`
+
+## 版本主题
+
+- fix: build local skills index before startup (#8)
+
+## 变更详情
+
+- 修复启动前不生成本机 skills 索引的问题。
+- 引擎启动构造阶段会扫描 `/data/local/ai-instruction/This machine skills`，并原子生成 `skills-index.json`。
+- 索引仅包含名称、相对路径、来源、类型、摘要和大小，不包含 skill 正文。
+- 可选目录不存在时不创建目录且不阻止引擎启动；空目录会生成空索引。
+- 新增启动级回归测试，验证首次启动、空目录和新增 skill 后的索引更新。
+
+## 发布说明
+
+Co-authored-by: snowzlmbot &lt;293528334+snowzlmbot@users.noreply.github.com&gt;
+
+## 此版本提交记录
+
+- fix: build local skills index before startup (#8)
+- docs: describe current release tag accurately (#7)
+- fix: parse compact GitHub release responses safely (#6)
+
+## 快速跳转
+
+- [返回全量更新日志](../../更新日志.md)
+- [返回 Pages 首页](../../docs/index.html)
+</pre></body></html>
