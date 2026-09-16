@@ -13,7 +13,7 @@ import urllib.request
 from dataclasses import dataclass
 
 TAG_RE = re.compile(r"^v(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$")
-DEFAULT_REPO = "snowzlmbot/ai-web-engine"
+DEFAULT_REPO = "snowzlmbot/ai-web-engine-runtime"
 
 
 @dataclass(frozen=True)
@@ -69,11 +69,11 @@ def checksum_map(url: str) -> dict[str, str]:
     return values
 
 
-def release_metadata(repo: str, tag: str) -> tuple[str, str, str, tuple[Asset, ...]]:
+def release_metadata(repo: str, tag: str) -> tuple[str, str, str, tuple[Asset, ...], str, str]:
     payload = api_json(f"https://api.github.com/repos/{repo}/releases/tags/{tag}")
     if not isinstance(payload, dict):
         fallback = f"https://github.com/{repo}/releases/tag/{tag}"
-        return fallback, "", "", ()
+        return fallback, "", "", (), "", ""
     release_url = str(payload.get("html_url") or f"https://github.com/{repo}/releases/tag/{tag}")
     published_at = str(payload.get("published_at") or payload.get("created_at") or "")
     updated_at = str(payload.get("updated_at") or published_at)
@@ -91,7 +91,9 @@ def release_metadata(repo: str, tag: str) -> tuple[str, str, str, tuple[Asset, .
         for asset in raw_assets
         if asset.get("name") and asset.get("browser_download_url")
     )
-    return release_url, published_at, updated_at, tuple(assets)
+    release_body = str(payload.get("body") or "").strip()
+    release_name = str(payload.get("name") or "").strip()
+    return release_url, published_at, updated_at, tuple(assets), release_body, release_name
 
 
 def changelog_notes(source: pathlib.Path, tag: str, version: str) -> str:
@@ -120,10 +122,54 @@ def releases(source: pathlib.Path, repo: str) -> list[Release]:
         commit_range = f"{older}..{tag}" if older else tag
         subjects = tuple(line for line in git(source, "log", "--format=%s", commit_range).splitlines() if line)
         version = ".".join(map(str, parts))
-        release_url, published_at, updated_at, assets = release_metadata(repo, tag)
-        notes = changelog_notes(source, tag, version)
+        release_url, published_at, updated_at, assets, release_body, release_name = release_metadata(repo, tag)
+        notes = changelog_notes(source, tag, version) or release_body
+        subject = release_name or subject
         result.append(Release(tag, version, parts[0], commit, date, subject, body, notes, subjects, release_url, published_at, updated_at, assets))
     return result
+
+
+def historical_releases(out: pathlib.Path, excluded: set[str]) -> list[Release]:
+    result: list[Release] = []
+    root = out / "更新日志"
+    if not root.exists():
+        return result
+    for path in root.glob("*/*.md"):
+        version = path.stem
+        match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)", version)
+        if not match or version in excluded:
+            continue
+        text = path.read_text(encoding="utf-8")
+        tag = f"v{version}"
+        release_match = re.search(r"发布标签：\[`[^`]+`\]\(([^)]+)\)", text)
+        commit_match = re.search(r"提交：\[`([^`]+)`\]", text)
+        date_match = re.search(r"日期：`([^`]+)`", text)
+        edited_match = re.search(r"Release 最后编辑/发布时间：`([^`]+)`", text)
+        subject_match = re.search(r"^## 版本主题\s+^- (.+)$", text, re.MULTILINE)
+        release_url = release_match.group(1) if release_match else f"https://github.com/snowzlmbot/ai-web-engine/releases/tag/{tag}"
+        result.append(Release(
+            tag=tag,
+            version=version,
+            major=int(match.group(1)),
+            commit=commit_match.group(1) if commit_match else "historical",
+            date=date_match.group(1) if date_match else "unknown",
+            subject=subject_match.group(1) if subject_match else "历史正式版本",
+            body="",
+            notes="",
+            commits=(),
+            release_url=release_url,
+            published_at="",
+            updated_at=edited_match.group(1) if edited_match else "",
+            assets=(),
+        ))
+    return result
+
+
+def version_key(release: Release) -> tuple[int, int, int]:
+    match = TAG_RE.match(release.tag)
+    if not match:
+        return (0, 0, 0)
+    return (int(match.group(1)), int(match.group(2)), int(match.group(3)))
 
 
 def asset_lines(release: Release) -> list[str]:
@@ -144,7 +190,7 @@ def markdown(release: Release) -> str:
         f"# ai-web-engine {release.version}",
         "",
         f"- 发布标签：[`{release.tag}`]({release.release_url})",
-        f"- 提交：[`{release.commit}`](https://github.com/snowzlmbot/ai-web-engine/commit/{release.commit})",
+        f"- 提交：[`{release.commit}`](https://github.com/snowzlmbot/ai-web-engine-runtime/commit/{release.commit})",
         f"- 日期：`{release.date}`",
         f"- Release 最后编辑/发布时间：`{release.updated_at or release.published_at or '未提供'}`",
         "",
@@ -195,13 +241,15 @@ def main() -> None:
     parser.add_argument("--out", type=pathlib.Path, required=True)
     parser.add_argument("--repo", default=DEFAULT_REPO)
     args = parser.parse_args()
-    items = releases(args.source, args.repo)
+    live_items = releases(args.source, args.repo)
+    historical = historical_releases(args.out, {item.version for item in live_items})
+    items = sorted([*live_items, *historical], key=version_key, reverse=True)
     if not items:
-        raise SystemExit("no semantic vX.Y.Z tags found")
+        raise SystemExit("no semantic vX.Y.Z tags or historical version pages found")
     (args.out / "更新日志").mkdir(parents=True, exist_ok=True)
     (args.out / "docs").mkdir(parents=True, exist_ok=True)
     (args.out / "更新日志.md").write_text(root_markdown(items), encoding="utf-8")
-    for release in items:
+    for release in live_items:
         target = args.out / "更新日志" / str(release.major) / f"{release.version}.md"
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(markdown(release), encoding="utf-8")
